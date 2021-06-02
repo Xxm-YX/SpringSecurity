@@ -1,5 +1,6 @@
 package com.example.SpringSecurityDemo.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
@@ -11,6 +12,8 @@ import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+import java.io.PrintWriter;
 
 @Configuration
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
@@ -66,6 +69,23 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 //                .successForwardUrl("/index")   如果访问的是hello，登录成功后会，去访问index
 //                .failureForwardUrl()   登录失败  发生服务器跳转
 //                .failureUrl()          登录失败，发生重定向
+                .successHandler((req,resp,authentication) ->{ //登录成功的回调函数，
+                    //这里传进来的是一个AuthenticationSuccessHandler 对象
+                    //AuthenticationSuccessHandler 是个接口
+                    Object principal = authentication.getPrincipal();
+                    resp.setContentType("application/json;charset=utf-8");
+                    PrintWriter out = resp.getWriter();
+                    out.write(new ObjectMapper().writeValueAsString(principal));
+                    out.flush();
+                    out.close();
+                })
+                .failureHandler((req,resp,e) ->{
+                  resp.setContentType("application/json;charset=utf-8");
+                  PrintWriter out = resp.getWriter();
+                  out.write(e.getMessage());
+                  out.flush();
+                  out.close();
+                })
                 .and()
                 .logout()//GET请求
                 .logoutUrl("/logout")//修改默认注销URL
@@ -76,6 +96,15 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .invalidateHttpSession(true)//使HttpSession失效  默认就会清除
                 .permitAll()//绕开过滤器
                 .and()
-                .csrf().disable();
+                .csrf().disable()
+                .exceptionHandling()
+                .authenticationEntryPoint((req, resp, e) -> {
+                    resp.setContentType("application/json;charset=utf-8");
+                    PrintWriter out = resp.getWriter();
+                    resp.sendError(110);
+                    out.write("尚未登录，请先登录");
+                    out.flush();
+                    out.close();
+                });
     }
 }
