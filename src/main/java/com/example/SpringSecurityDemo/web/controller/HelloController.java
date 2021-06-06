@@ -1,4 +1,4 @@
-package com.example.SpringSecurityDemo.web;
+package com.example.SpringSecurityDemo.web.controller;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;

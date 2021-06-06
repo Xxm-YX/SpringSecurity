@@ -1,11 +1,16 @@
 package com.example.SpringSecurityDemo.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.code.kaptcha.Producer;
+import com.google.code.kaptcha.impl.DefaultKaptcha;
+import com.google.code.kaptcha.util.Config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
@@ -23,6 +28,8 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import javax.sql.DataSource;
 import javax.xml.crypto.Data;
 import java.io.PrintWriter;
+import java.util.Arrays;
+import java.util.Properties;
 
 @Configuration
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
@@ -39,17 +46,32 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     public DataSource dataSource;
 
-    @Bean
-    public JdbcTokenRepositoryImpl jdbcTokenRepository(){
-        JdbcTokenRepositoryImpl jdbcTokenRepository = new JdbcTokenRepositoryImpl();
-        jdbcTokenRepository.setDataSource(dataSource);
-        return jdbcTokenRepository;
-    }
+//    @Bean
+//    public JdbcTokenRepositoryImpl jdbcTokenRepository(){
+//        JdbcTokenRepositoryImpl jdbcTokenRepository = new JdbcTokenRepositoryImpl();
+//        jdbcTokenRepository.setDataSource(dataSource);
+//        return jdbcTokenRepository;
+//    }
 
     @Bean
     //不加密
     PasswordEncoder passwordEncoder() {
         return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Bean
+    MyAuthenticationProvider myAuthenticationProvider(){
+        MyAuthenticationProvider myAuthenticationProvider = new MyAuthenticationProvider();
+        myAuthenticationProvider.setPasswordEncoder(passwordEncoder());
+        myAuthenticationProvider.setUserDetailsService(userDetailsService());
+        return myAuthenticationProvider;
+    }
+
+
+    @Override
+    protected AuthenticationManager authenticationManager() throws Exception {
+        ProviderManager manager = new ProviderManager(Arrays.asList(myAuthenticationProvider()));
+        return manager;
     }
 
     @Override
@@ -98,15 +120,17 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()//基于URL的限制访问开启
+
                 .antMatchers("/rememberme/**").rememberMe()//需要rememberMe才能进行访问
                 .antMatchers("/admin/**").fullyAuthenticated()//  fullAuthenticated 不包含rememberMe的验证，authenticated包含rememberMe的验证
 //                .antMatchers("/admin/**").hasRole("admin")//配置访问路径，那些
 //                .antMatchers("/user/**").hasRole("user")
+                .antMatchers("/vc.jpg").permitAll()
                 .anyRequest().authenticated()////映射所有请求  并进行验证
                 .and()//表示结束当前标签，上下文回到HttpSecurity，开启新一轮的配置。
                 .formLogin()
-//                .loginPage("/login.html")
-//                .loginProcessingUrl("/doLogin")
+                .loginPage("/login.html")
+                .loginProcessingUrl("/doLogin")
                 .permitAll()//表示登录相关的页面/接口不要被拦截。
                 .usernameParameter("name")
                 .passwordParameter("passwd")
@@ -151,10 +175,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .and()
                 .rememberMe()//记住我，配置这个就行
                 .key("zyx") //这个key原本是系统设置的UUID,但是服务端重启的话会变。
-                .tokenRepository(jdbcTokenRepository())// 自带的数据库模型，里面有对token表的操作
+//                .tokenRepository(jdbcTokenRepository())// 自带的数据库模型，里面有对token表的操作
                 .and()
                 .csrf().disable()
-                .exceptionHandling()
+                .sessionManagement().maximumSessions(1)//设置会话数量为1
+//                .exceptionHandling()
 //                .authenticationEntryPoint((req, resp, e) -> {
 //                    resp.setContentType("application/json;charset=utf-8");
 //                    PrintWriter out = resp.getWriter();
@@ -165,5 +190,19 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 //                    out.close();
 //                });
         ;
+    }
+
+
+    @Bean
+    Producer verifyCode() {
+        Properties properties = new Properties();
+        properties.setProperty("kaptcha.image.width", "150");
+        properties.setProperty("kaptcha.image.height", "50");
+        properties.setProperty("kaptcha.textproducer.char.string", "0123456789");
+        properties.setProperty("kaptcha.textproducer.char.length", "4");
+        Config config = new Config(properties);
+        DefaultKaptcha defaultKaptcha = new DefaultKaptcha();
+        defaultKaptcha.setConfig(config);
+        return defaultKaptcha;
     }
 }
